@@ -1,0 +1,16 @@
+# Security (CRITICAL)
+.env
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Python Cache Clutter
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE specific files (Cursor/VS Code/PyCharm)
+.vscode/
+.idea/
