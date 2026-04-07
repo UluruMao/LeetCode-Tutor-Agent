@@ -14,3 +14,6 @@ __pycache__/
 # IDE specific files (Cursor/VS Code/PyCharm)
 .vscode/
 .idea/
+
+# Ignore personal dev notes
+Development logs.docx
