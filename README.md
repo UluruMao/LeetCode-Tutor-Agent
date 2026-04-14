@@ -1,8 +1,8 @@
 ## LeetCode AI Tutor Agent
 
-An autonomous, locally-hosted AI engineering tool that monitors your LeetCode profile, detects failed submissions, and provides **Socratic, spoiler-free tutoring** using **Google Gemini** (via LangChain).
+An autonomous, locally-hosted background daemon that monitors your LeetCode profile, detects failed submissions in real-time, and provides **Socratic, spoiler-free tutoring** using **Google Gemini** (via LangChain).
 
-Built to transform the LeetCode grind into a guided learning loop, this agent acts like a strict but helpful tutor: it highlights logical gaps, surfaces edge cases, and asks guiding questions—**without writing the full solution for you**.
+Built to transform the LeetCode grind into a guided learning loop, this agent acts like a strict but helpful tutor: it sits silently in the background, pings you with a native OS desktop notification when you fail a test case, and generates a detailed study guide highlighting logical gaps—**without writing the full solution for you**.
 
 ---
 
@@ -12,6 +12,9 @@ Built to transform the LeetCode grind into a guided learning loop, this agent ac
 - **Socratic AI analysis**: Uses Gemini via LangChain with “teacher-mode” prompts to focus on reasoning, not answer-dumping.
 - **Study guide generation**: Logs failed attempts, error output, and tailored guidance into a local, timestamped `study_guide.md`.
 - **Secure-by-default workflow**: Uses `.venv` and `python-dotenv` so cookies and API keys stay local and out of version control.
+- **Continuous Background Monitoring**: Added polling every 60 seconds.
+- **Native OS Notifications**: Added instant Windows alerts via plyer.
+- **Dual-Layer Logging**: Added the SQLite database (leetcode_history.db) alongside the Markdown file.
 
 ---
 
@@ -19,10 +22,10 @@ Built to transform the LeetCode grind into a guided learning loop, this agent ac
 
 - **Language**: Python 3
 - **AI orchestration**: LangChain (`langchain-google-genai`)
-- **LLM**: Google Gemini (configured in code; default: `gemini-2.5-flash`)
+- **LLM**: Google Gemini (configured in code; default: `gemini-3-flash-preview`)
 - **Network / API**: `requests`, GraphQL
-- **Environment**: `python-dotenv`
-
+- **System Integration**: `plyer` (notifications), `python-dotenv`, `PyInstaller`
+- **Database**:SQLite3, plyer, and PyInstaller
 ---
 
 ## Project Output
@@ -102,11 +105,11 @@ python main.py
 
 ## How It Works (High Level)
 
-1. Fetch recent submission metadata from LeetCode (GraphQL)
-2. Detect failed submissions
-3. Pull relevant failure context (code + failing cases/output when available)
-4. Send a constrained “tutor prompt” to Gemini via LangChain
-5. Append results to `study_guide.md` for later review
+1. **Monitor:** The daemon runs continuously in the background, polling LeetCode via GraphQL every 60 seconds.
+2. **Alert:** Triggers native Windows desktop notifications the moment a new submission is detected.
+3. **Fetch Context:** If a failure is detected, it pulls the exact failure context (your code, runtime errors, and failing test cases).
+4. **Socratic Analysis:** Sends a constrained “tutor prompt” to Gemini via LangChain, extracting the core hint from the model's response blocks.
+5. **Dual-Layer Logging:** Appends the full AI explanation to `study_guide.md` and logs the structured failure data (problem title, tags, error type) into the `leetcode_history.db` SQLite database for long-term tracking.
 
 ---
 
@@ -120,18 +123,19 @@ python main.py
 
 ## Troubleshooting
 
-- **401/403 from LeetCode**: Cookies expired or missing. Re-copy `LEETCODE_SESSION` and `LEETCODE_CSRF`.
+- **401/403 from LeetCode**: Cookies expired or missing. Re-copy `LEETCODE_SESSION` and `LEETCODE_CSRF` into your `.env` file.
 - **No submissions detected**: Confirm `LEETCODE_USERNAME` is correct and you have recent submissions.
 - **Gemini errors / invalid key**: Verify `GOOGLE_API_KEY` is valid and enabled in Google AI Studio.
+- **503 Service Unavailable**: The Gemini API is experiencing high traffic. The daemon is designed to handle this gracefully; it will automatically wait 60 seconds and retry, so no action is needed!
+- **RequestsDependencyWarning**: If your terminal shows a warning about `chardet` or `charset_normalizer`, it is completely harmless.
+- **"No usable implementation found!" crash**: If your compiled `.exe` crashes with this error, PyInstaller failed to bundle the Windows notification libraries. Re-build the executable and ensure you include the `--hidden-import "plyer.platforms.win.notification"` flag.
 - **Windows activation blocked**: You may need to allow script execution (PowerShell). See Microsoft guidance for `Set-ExecutionPolicy` (use the least permissive option that works for you).
 
 ---
 
 ## Roadmap / Future Improvements
 
-- **Continuous polling**: Run as a background daemon to trigger instantly after a failed submission.
 - **Targeted practice generation**: Generate an “easy” drill problem tailored to the specific mistake detected.
-- **SQLite logging**: Replace Markdown-only history with a queryable local database (failure types over time, topic trends, etc.).
 
 ---
 
