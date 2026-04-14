@@ -106,7 +106,7 @@ You can query your local SQLite database to see how often you fail certain types
 
 ```bash
 python query_stats.py "sliding window"
-
+```
 ---
 
 ## How It Works (High Level)
