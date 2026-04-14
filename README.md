@@ -94,12 +94,18 @@ LEETCODE_USERNAME="your_leetcode_username"
 
 ### 4) Run the tutor
 
-1. Submit a problem on LeetCode (failing one is a good test).
+1. Submit a problem on LeetCode.
 2. Run:
 
 ```bash
 python main.py
 ```
+### 5) Analyzing Your Weaknesses
+
+You can query your local SQLite database to see how often you fail certain types of problems. Run the query script with a search term, for example:
+
+```bash
+python query_stats.py "sliding window"
 
 ---
 
