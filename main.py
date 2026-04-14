@@ -1,12 +1,17 @@
 import os
 import requests
 import datetime
+import time
+from plyer import notification
 from dotenv import load_dotenv
+from database import init_db, log_failure_to_db
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
+
 # --- Setup & Authentication ---
 load_dotenv()
+init_db()
 LEETCODE_SESSION = os.getenv("LEETCODE_SESSION")
 CSRF_TOKEN = os.getenv("LEETCODE_CSRF")
 USERNAME = os.getenv("LEETCODE_USERNAME")
@@ -53,10 +58,42 @@ def get_submission_details(submission_id):
     response = requests.post(GRAPHQL_URL, headers=headers, json=payload)
     return response.json().get("data", {}).get("submissionDetails")
 
+def get_problem_tags(title_slug: str) -> str:
+    payload = {
+        "operationName": "questionTags",
+        "variables": {"titleSlug": title_slug},
+        "query": """
+        query questionTags($titleSlug: String!) {
+          question(titleSlug: $titleSlug) {
+            topicTags { name }
+          }
+        }
+        """
+    }
+    response = requests.post(GRAPHQL_URL, headers=headers, json=payload)
+    tags = (
+        response.json()
+        .get("data", {})
+        .get("question", {})
+        .get("topicTags", [])
+    )
+    return ", ".join(t.get("name") for t in tags if t.get("name")) or "N/A"
+
+# --- New Notification Helper ---
+def notify_user(title, message):
+    """Triggers a native Windows desktop notification."""
+    notification.notify(
+        title=title,
+        message=message,
+        app_name="LeetCode Tutor",
+        # You can add a .ico file path here if you want a custom icon
+        timeout=10 
+    )
+
 # --- 2. The Brain: LangChain Tutor ---
-def analyze_with_ai(problem_title, user_code, failed_test_case, error_msg):
+def analyze_with_ai(problem_title, problem_tags, user_code, failed_test_case, error_msg):
     print("\n Invoking Gemini AI Tutor...\n")
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2)
+    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.2)
     
     prompt = PromptTemplate(
         input_variables=["problem", "code", "test_case", "error"],
@@ -88,18 +125,27 @@ def analyze_with_ai(problem_title, user_code, failed_test_case, error_msg):
         "error": error_msg or "Wrong Answer"
     })
     
+    # NEW FIX: Extract text if the preview model returns a list
+    ai_advice = result.content
+    if isinstance(ai_advice, list):
+        # Extract the 'text' value from the dictionary inside the list
+        ai_advice = "".join([block.get("text", "") for block in ai_advice if block.get("type") == "text"])
+    
     print("================ AI TUTOR ================")
-    print(result.content)
+    print(ai_advice)
     print("==========================================")
-    save_to_markdown(problem_title, error_msg, result.content)
+    
+    # Pass the cleaned string to the logger, not the raw result.content
+    save_to_markdown(problem_title, problem_tags, error_msg, ai_advice)
 
 # --- 3. The Markdown Logger ---
-def save_to_markdown(problem_title, error_msg, ai_advice):
+def save_to_markdown(problem_title, problem_tags, error_msg, ai_advice):
     filename = "study_guide.md"
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     
     # Format the log entry in beautiful Markdown
     entry = f"##  {problem_title}\n"
+    entry += f"**Tags:** {problem_tags}\n"
     entry += f"**Date:** {timestamp}\n"
     entry += f"**Status/Error:** `{error_msg}`\n\n"
     entry += "### The Flaw & Hint\n"
@@ -109,32 +155,72 @@ def save_to_markdown(problem_title, error_msg, ai_advice):
     # Append to the file (creates the file if it doesn't exist)
     with open(filename, "a", encoding="utf-8") as f:
         f.write(entry)
+        log_failure_to_db(problem_title, problem_tags, error_msg, ai_advice)
         
     print(f" Logged to {filename}")
 
-# --- 4. The Main Loop ---
-if __name__ == "__main__":
-    print(f" Checking LeetCode for {USERNAME}...")
-    latest = get_latest_submission()
+# --- 4. The Background Daemon Loop ---
+def run_tutor_loop():
+    last_processed_id = None
     
-    if not latest:
-        print(" No submissions found.")
-    else:
-        print(f" Found latest submission: {latest['title']} ({latest['statusDisplay']})")
-        
-        if latest['statusDisplay'] == "Accepted":
-            print(" Solution Accepted! No tutoring needed right now.")
-        else:
-            print(f" Oh no! Failed with: {latest['statusDisplay']}. Pulling code for analysis...")
+    # Initialize the DB once at startup
+    init_db()
+    
+    print(f"Background Daemon Started. Monitoring {USERNAME}...")
+    notify_user("LeetCode Tutor Active", "Monitoring your submissions in the background.")
+
+    while True:
+        try:
+            latest = get_latest_submission()
             
-            # Fetch the actual code and test case
-            details = get_submission_details(latest['id'])
+            if latest:
+                current_id = latest['id']
+                status = latest['statusDisplay']
+                
+                # Only proceed if this is a NEW submission we haven't seen yet
+                if current_id != last_processed_id:
+                    if status == "Accepted":
+                        print(f"New submission: '{latest['title']}' accepted. Skipping.")
+                        # NEW: Immediate success notification
+                        notify_user("LeetCode: Accepted! ", f"Great job passing {latest['title']}!")
+                    else:
+                        print(f"New failure detected: {latest['title']}. Analyzing...")
+                        # NEW: Immediate failure notification
+                        notify_user("LeetCode: Failed ", f"Failed {latest['title']}. AI Tutor is analyzing your code...")
+                        
+                        # Process the failure
+                        details = get_submission_details(current_id)
+                        if details:
+                            error_info = (details.get('runtimeError') or 
+                                          details.get('compileError') or 
+                                          status)
+                            title_slug = (details.get("question") or {}).get("titleSlug")
+                            problem_tags = get_problem_tags(title_slug) if title_slug else "N/A"
+                            
+                            # Analyze and save
+                            analyze_with_ai(
+                                problem_title=latest['title'],
+                                problem_tags=problem_tags,
+                                user_code=details.get('code'),
+                                failed_test_case=details.get('lastTestcase'),
+                                error_msg=error_info
+                            )
+                            
+                            # Trigger Desktop Notification WHEN FINISHED
+                            notify_user(
+                                f"Tutor Analysis Ready",
+                                f"Socratic hint for {latest['title']} is in your study_guide.md!"
+                            )
+                    
+                    # Update the state so we don't re-process this ID
+                    last_processed_id = current_id
             
-            if details:
-                error_info = details.get('runtimeError') or details.get('compileError') or latest['statusDisplay']
-                analyze_with_ai(
-                    problem_title=latest['title'],
-                    user_code=details.get('code'),
-                    failed_test_case=details.get('lastTestcase'),
-                    error_msg=error_info
-                )
+        except Exception as e:
+            print(f"Polling error: {e}")
+
+        # Wait for 60 seconds before checking again
+        time.sleep(60)
+
+# --- 5. Execution ---
+if __name__ == "__main__":
+    run_tutor_loop()    

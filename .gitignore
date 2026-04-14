@@ -17,3 +17,15 @@ __pycache__/
 
 # Ignore personal dev notes
 Development logs.docx
+
+# Ignore database files
+*.db
+
+# PyInstaller Build Folders & Files
+build/
+dist/
+*.spec
+*.exe
+
+# Microsoft Word Temp Files
+~$*.docx
