@@ -7,8 +7,7 @@ def search_by_tag(target_tag):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # We use % to allow partial matches, so searching "sliding window" 
-    # will match "Array, Sliding Window, Two Pointers"
+    # We use % to allow partial matches.
     query = "SELECT timestamp, problem_title, error_type FROM failures WHERE tags LIKE ? COLLATE NOCASE"
     cursor.execute(query, ('%' + target_tag + '%',))
     
