@@ -1,6 +1,6 @@
 ## LeetCode AI Tutor Agent
 
-An autonomous, locally-hosted background daemon that monitors your LeetCode profile, detects failed submissions in real-time, and provides **Socratic, spoiler-free tutoring** using **Google Gemini** (via LangChain).
+An autonomous, locally-hosted background program that monitors your LeetCode profile, detects failed submissions in real-time, and provides **spoiler-free tutoring** using **Google Gemini** (via LangChain).
 
 Built to transform the LeetCode grind into a guided learning loop, this agent acts like a strict but helpful tutor: it sits silently in the background, pings you with a native OS desktop notification when you fail a test case, and generates a detailed study guide highlighting logical gaps—**without writing the full solution for you**.
 
