@@ -25,7 +25,7 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-# --- 1. The Eyes: Fetching Functions ---
+# --- Fetching Functions ---
 def get_latest_submission():
     payload = {
         "operationName": "recentAcSubmissions",
@@ -79,7 +79,7 @@ def get_problem_tags(title_slug: str) -> str:
     )
     return ", ".join(t.get("name") for t in tags if t.get("name")) or "N/A"
 
-# --- New Notification Helper ---
+# --- Notification Helper ---
 def notify_user(title, message):
     """Triggers a native Windows desktop notification."""
     notification.notify(
@@ -90,7 +90,7 @@ def notify_user(title, message):
         timeout=10 
     )
 
-# --- 2. The Brain: LangChain Tutor ---
+# --- LangChain Tutor ---
 def analyze_with_ai(problem_title, problem_tags, user_code, failed_test_case, error_msg):
     print("\n Invoking Gemini AI Tutor...\n")
     llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.2)
@@ -138,7 +138,7 @@ def analyze_with_ai(problem_title, problem_tags, user_code, failed_test_case, er
     # Pass the cleaned string to the logger, not the raw result.content
     save_to_markdown(problem_title, problem_tags, error_msg, ai_advice)
 
-# --- 3. The Markdown Logger ---
+# --- The Markdown Logger ---
 def save_to_markdown(problem_title, problem_tags, error_msg, ai_advice):
     filename = "study_guide.md"
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -159,7 +159,7 @@ def save_to_markdown(problem_title, problem_tags, error_msg, ai_advice):
         
     print(f" Logged to {filename}")
 
-# --- 4. The Background Daemon Loop ---
+# --- The Background Loop ---
 def run_tutor_loop():
     last_processed_id = None
     
@@ -221,6 +221,6 @@ def run_tutor_loop():
         # Wait for 60 seconds before checking again
         time.sleep(60)
 
-# --- 5. Execution ---
+# --- Execution ---
 if __name__ == "__main__":
     run_tutor_loop()    
